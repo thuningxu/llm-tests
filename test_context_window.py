@@ -9,7 +9,7 @@ import time
 
 DEFAULT_BASE_URL = "http://127.0.0.1:1234/v1"
 DEFAULT_MODEL = "qwen/qwen3.5-35b-a3b"
-DEFAULT_TEST_SIZES = [1, 128, 192, 256]
+DEFAULT_TEST_SIZES = [1, 16, 128, 192, 256]
 DEFAULT_TIMEOUT = 3600  # 60 minutes
 
 
