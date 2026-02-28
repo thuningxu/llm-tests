@@ -86,12 +86,21 @@ What is the secret code? Give me ONLY the code as your final answer."""
             # Check if model found the secret code anywhere in response
             found_code = "BLUE-ELEPHANT-42" in reply.upper().replace(" ", "-")
 
+            # Calculate throughput
+            prompt_tps = actual_prompt_tokens / elapsed if elapsed > 0 else 0
+            # Estimate time spent on completion (rough: assume linear with tokens)
+            total_tokens = actual_prompt_tokens + completion_tokens
+            completion_tps = completion_tokens / elapsed if elapsed > 0 else 0
+
             status = "OK" if found_code else "RECALL FAILED"
-            print(f"  {status} ({elapsed:.1f}s, {actual_prompt_tokens} prompt, {completion_tokens} completion)")
-            print(f"  Response: {reply[:300]}")
+            print(f"  {status} ({elapsed:.1f}s)")
+            print(f"  Tokens: {actual_prompt_tokens} prompt + {completion_tokens} completion")
+            print(f"  Throughput: {prompt_tps:.1f} prompt tok/s, {completion_tps:.1f} completion tok/s")
+            print(f"  Response: {reply[:200]}")
 
             return {"success": True, "recall": found_code, "time": elapsed,
-                    "prompt_tokens": actual_prompt_tokens}
+                    "prompt_tokens": actual_prompt_tokens, "completion_tokens": completion_tokens,
+                    "prompt_tps": prompt_tps, "completion_tps": completion_tps}
 
     except urllib.error.HTTPError as e:
         elapsed = time.time() - start_time
@@ -159,6 +168,15 @@ def main():
     print("=" * 60)
     print(f"Max context that worked:        {max_working}K tokens")
     print(f"Max context with recall intact: {max_with_recall}K tokens")
+
+    # Throughput summary
+    successful_results = [(k, r) for k, r in results if r.get("success") and r.get("recall")]
+    if successful_results:
+        print("\nThroughput by context size:")
+        print(f"  {'Size':<8} {'Time':<10} {'Prompt tok/s':<15} {'Completion tok/s'}")
+        print(f"  {'-'*8} {'-'*10} {'-'*15} {'-'*15}")
+        for size_k, r in successful_results:
+            print(f"  {size_k}K{'':<5} {r['time']:<10.1f} {r.get('prompt_tps', 0):<15.1f} {r.get('completion_tps', 0):.1f}")
 
     if max_with_recall >= 256:
         print("\nFull 256K context supported with recall!")
