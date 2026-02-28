@@ -129,9 +129,22 @@ def main():
     max_working = 0
     max_with_recall = 0
 
-    for size_k in TEST_SIZES_K:
+    for i, size_k in enumerate(TEST_SIZES_K):
         result = test_context_size(size_k)
         results.append((size_k, result))
+
+        # First test (1K) is validation - must pass with recall
+        if i == 0:
+            if not result["success"] or not result.get("recall"):
+                print("\n" + "=" * 60)
+                print("ABORT: 1K baseline test failed!")
+                print("=" * 60)
+                print("The 1K test must pass with recall to validate the test setup.")
+                print("Possible issues:")
+                print("  - Model not loaded or server not running")
+                print("  - Model doesn't support the expected prompt format")
+                print("  - max_tokens too low to capture the answer")
+                return
 
         if result["success"]:
             max_working = size_k
