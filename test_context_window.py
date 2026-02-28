@@ -1,19 +1,16 @@
 #!/usr/bin/env python3
 """Probe the actual supported context window size of a local LM Studio model."""
 
+import argparse
 import urllib.request
 import urllib.error
 import json
 import time
 
-BASE_URL = "http://127.0.0.1:1234/v1"
-MODEL = "qwen/qwen3.5-35b-a3b"
-
-# Test sizes: 1K to validate, then large contexts
-TEST_SIZES_K = [1, 128, 192, 256]
-
-# 30 minute timeout
-TIMEOUT_SECONDS = 1800
+DEFAULT_BASE_URL = "http://127.0.0.1:1234/v1"
+DEFAULT_MODEL = "qwen/qwen3.5-35b-a3b"
+DEFAULT_TEST_SIZES = [1, 128, 192, 256]
+DEFAULT_TIMEOUT = 1800  # 30 minutes
 
 
 def generate_filler_text(target_tokens):
@@ -30,7 +27,7 @@ def count_tokens_estimate(text):
     return len(text) // 4
 
 
-def test_context_size(target_k):
+def test_context_size(target_k, model, base_url, timeout):
     """Test if the model can handle a context of approximately target_k thousand tokens."""
     target_tokens = target_k * 1000
 
@@ -47,7 +44,7 @@ END.
 What is the secret code? Give me ONLY the code as your final answer."""
 
     payload = {
-        "model": MODEL,
+        "model": model,
         "messages": [
             {"role": "user", "content": user_message}
         ],
@@ -62,7 +59,7 @@ What is the secret code? Give me ONLY the code as your final answer."""
 
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
-        BASE_URL + "/chat/completions",
+        base_url + "/chat/completions",
         data=data,
         headers={"Content-Type": "application/json"},
         method="POST"
@@ -73,7 +70,7 @@ What is the secret code? Give me ONLY the code as your final answer."""
 
     start_time = time.time()
     try:
-        with urllib.request.urlopen(req, timeout=TIMEOUT_SECONDS) as response:
+        with urllib.request.urlopen(req, timeout=timeout) as response:
             elapsed = time.time() - start_time
             result = json.loads(response.read().decode("utf-8"))
 
@@ -124,13 +121,50 @@ What is the secret code? Give me ONLY the code as your final answer."""
         return {"success": False, "error": str(e)}
 
 
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Probe the context window size of a local LLM server."
+    )
+    parser.add_argument(
+        "-m", "--model",
+        default=DEFAULT_MODEL,
+        help=f"Model name to test (default: {DEFAULT_MODEL})"
+    )
+    parser.add_argument(
+        "-u", "--url",
+        default=DEFAULT_BASE_URL,
+        help=f"Base URL of the API server (default: {DEFAULT_BASE_URL})"
+    )
+    parser.add_argument(
+        "-s", "--sizes",
+        type=str,
+        default=None,
+        help="Comma-separated list of context sizes in K to test (default: 1,128,192,256)"
+    )
+    parser.add_argument(
+        "-t", "--timeout",
+        type=int,
+        default=DEFAULT_TIMEOUT,
+        help=f"Timeout in seconds per request (default: {DEFAULT_TIMEOUT})"
+    )
+    return parser.parse_args()
+
+
 def main():
+    args = parse_args()
+
+    model = args.model
+    base_url = args.url
+    timeout = args.timeout
+    test_sizes = [int(x) for x in args.sizes.split(",")] if args.sizes else DEFAULT_TEST_SIZES
+
     print("=" * 60)
     print("Context Window Size Test")
     print("=" * 60)
-    print(f"Model: {MODEL}")
-    print(f"Testing sizes: {', '.join(f'{k}K' for k in TEST_SIZES_K)}")
-    print(f"Timeout: {TIMEOUT_SECONDS}s ({TIMEOUT_SECONDS // 60} minutes)")
+    print(f"Model: {model}")
+    print(f"Server: {base_url}")
+    print(f"Testing sizes: {', '.join(f'{k}K' for k in test_sizes)}")
+    print(f"Timeout: {timeout}s ({timeout // 60} minutes)")
     print("Thinking mode: DISABLED via chat_template_kwargs")
     print("=" * 60)
 
@@ -138,8 +172,8 @@ def main():
     max_working = 0
     max_with_recall = 0
 
-    for i, size_k in enumerate(TEST_SIZES_K):
-        result = test_context_size(size_k)
+    for i, size_k in enumerate(test_sizes):
+        result = test_context_size(size_k, model, base_url, timeout)
         results.append((size_k, result))
 
         # First test (1K) is validation - must pass with recall
