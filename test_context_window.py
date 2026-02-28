@@ -10,7 +10,7 @@ import time
 DEFAULT_BASE_URL = "http://127.0.0.1:1234/v1"
 DEFAULT_MODEL = "qwen/qwen3.5-35b-a3b"
 DEFAULT_TEST_SIZES = [1, 128, 192, 256]
-DEFAULT_TIMEOUT = 1800  # 30 minutes
+DEFAULT_TIMEOUT = 3600  # 60 minutes
 
 
 def generate_filler_text(target_tokens):
@@ -50,7 +50,7 @@ What is the secret code? Give me ONLY the code as your final answer."""
         ],
         "temperature": 0.7,
         "top_p": 0.8,
-        "max_tokens": 100,
+        "max_tokens": 4096,
         # Disable thinking mode per Qwen docs
         "extra_body": {
             "chat_template_kwargs": {"enable_thinking": False},
