@@ -16,31 +16,27 @@ DEFAULT_TIMEOUT = 3600  # 60 minutes
 def test_decode(target_tokens, model, base_url, timeout):
     """Generate target_tokens tokens and measure decode throughput."""
 
+    # Use /v1/completions (raw) to avoid chat template stop sequences
     prompt = (
-        f"Write a very long, detailed story about a space explorer. "
-        f"Do not stop writing until you have written at least {target_tokens * 2} words. "
-        f"Include many characters, locations, and plot twists. Go:"
+        "Chapter 1\n\n"
+        "The starship Aurora drifted silently through the Kepler expanse. "
+        "Captain Mira Chen checked the navigation console and frowned. "
+        "The readings were unlike anything she had seen in her twenty years of service.\n\n"
+        "Chapter 2\n\n"
     )
 
     payload = {
         "model": model,
-        "messages": [
-            {"role": "user", "content": prompt}
-        ],
-        "temperature": 0.7,
-        "top_p": 0.8,
+        "prompt": prompt,
+        "temperature": 0.8,
+        "top_p": 0.9,
         "max_tokens": target_tokens,
-        # Disable thinking mode per Qwen docs
-        "extra_body": {
-            "chat_template_kwargs": {"enable_thinking": False},
-        },
-        # Try to prevent early stopping
-        "ignore_eos": True,
+        "stop": [],  # No stop sequences
     }
 
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
-        base_url + "/chat/completions",
+        base_url + "/completions",
         data=data,
         headers={"Content-Type": "application/json"},
         method="POST"
@@ -59,8 +55,9 @@ def test_decode(target_tokens, model, base_url, timeout):
             prompt_tokens = usage.get("prompt_tokens", "?")
             completion_tokens = usage.get("completion_tokens", 0)
 
-            reply = result["choices"][0]["message"]["content"].strip()
-            finish_reason = result["choices"][0].get("finish_reason", "?")
+            choice = result["choices"][0]
+            reply = (choice.get("message", {}).get("content") or choice.get("text", "")).strip()
+            finish_reason = choice.get("finish_reason", "?")
 
             # Calculate decode throughput
             decode_tps = completion_tokens / elapsed if elapsed > 0 else 0
