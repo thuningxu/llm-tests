@@ -55,6 +55,39 @@ python3 test_context_window.py --url "http://localhost:8080/v1" --timeout 7200
   Throughput: 284.5 prompt tok/s, 5.5 completion tok/s
 ```
 
+### test_decode_throughput.py
+
+Benchmarks decode (token generation) throughput by requesting the model to generate a configurable number of tokens. Uses the raw `/v1/completions` endpoint to avoid chat template stop sequences.
+
+```bash
+# Test with default sizes (256, 1024, 4096 tokens)
+python3 test_decode_throughput.py
+
+# Test a specific model with custom token counts
+python3 test_decode_throughput.py --model "qwen3.5-9b" --tokens "256,8192,32768"
+
+# Test against a remote server
+python3 test_decode_throughput.py --model "qwen3.5-9b" --url "http://10.0.0.217:1234/v1" --tokens "256,32768"
+```
+
+#### Options
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `-m`, `--model` | Model name to test | `qwen/qwen3.5-35b-a3b` |
+| `-u`, `--url` | Base URL of the API server | `http://127.0.0.1:1234/v1` |
+| `-n`, `--tokens` | Comma-separated token counts to generate | `256,1024,4096` |
+| `-t`, `--timeout` | Timeout in seconds per request | `3600` (60 min) |
+
+#### Output
+
+```
+[32K] Generating 32,768 tokens...
+  OK (503.5s, finish: length)
+  Tokens: 46 prompt + 32768 completion (target: 32768)
+  Decode throughput: 65.1 tok/s
+```
+
 ## Requirements
 
 - Python 3.7+ (no external dependencies — uses only stdlib)
