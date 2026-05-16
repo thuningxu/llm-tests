@@ -88,7 +88,37 @@ python3 test_decode_throughput.py --model "qwen3.5-9b" --url "http://10.0.0.217:
   Decode throughput: 65.1 tok/s
 ```
 
+### test_mmlu.py
+
+Runs the classic [MMLU](https://github.com/hendrycks/test) benchmark (57 subjects, 4-option multiple choice). Uses `/v1/completions` so the model literally continues `Answer:` with a letter — the canonical eval format. Auto-downloads dataset to `~/.cache/mmlu/` on first run.
+
+```bash
+# One subject (~80s on a 27B at ~1.2 q/s)
+python3 test_mmlu.py -m qwen3.6-27b -u http://10.0.0.130:1234/v1
+
+# Quick sanity check
+python3 test_mmlu.py -m qwen3.6-27b --limit 5
+
+# All 57 subjects (several hours)
+python3 test_mmlu.py -m qwen3.6-27b --all
+```
+
+### test_mmlu_pro.py
+
+Runs [MMLU-Pro](https://huggingface.co/datasets/TIGER-Lab/MMLU-Pro) (14 categories, 10-option, reasoning-heavy). CoT-enabled by default; parses `the answer is (X)` from the response. Uses the `datasets` library — invoke via `uv run` so the dep is auto-installed in an ephemeral venv:
+
+```bash
+# Default: one category (history, 381 questions)
+uv run test_mmlu_pro.py -m qwen3.6-27b -u http://10.0.0.130:1234/v1 --limit 20
+
+# All 14 categories (~hours-to-days depending on model speed)
+uv run test_mmlu_pro.py -m qwen3.6-27b --all --limit 50
+```
+
+A 27B-class model can take ~60-90s per MMLU-Pro question (CoT is long), so always set `--limit` for first runs.
+
 ## Requirements
 
-- Python 3.7+ (no external dependencies — uses only stdlib)
+- Python 3.7+ (no external dependencies — uses only stdlib) for `test_lm_studio.py`, `test_context_window.py`, `test_decode_throughput.py`, `test_mmlu.py`
+- [`uv`](https://docs.astral.sh/uv/) for `test_mmlu_pro.py` (auto-manages the `datasets` dependency)
 - A running LLM server with OpenAI-compatible API (e.g., LM Studio)
