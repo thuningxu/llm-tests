@@ -46,15 +46,15 @@ What is the secret code? Give me ONLY the code as your final answer."""
     payload = {
         "model": model,
         "messages": [
-            {"role": "user", "content": user_message}
+            {"role": "user", "content": user_message},
+            # Prefill an empty <think> block. The chat_template_kwargs/enable_thinking
+            # knob is unreliable across servers; this prefill forces the model to skip
+            # CoT regardless of template config.
+            {"role": "assistant", "content": "<think>\n\n</think>\n\n"},
         ],
         "temperature": 0.7,
         "top_p": 0.8,
         "max_tokens": 4096,
-        # Disable thinking mode per Qwen docs
-        "extra_body": {
-            "chat_template_kwargs": {"enable_thinking": False},
-        },
     }
 
     data = json.dumps(payload).encode("utf-8")
@@ -165,7 +165,7 @@ def main():
     print(f"Server: {base_url}")
     print(f"Testing sizes: {', '.join(f'{k}K' for k in test_sizes)}")
     print(f"Timeout: {timeout}s ({timeout // 60} minutes)")
-    print("Thinking mode: DISABLED via chat_template_kwargs")
+    print("Thinking mode: DISABLED via empty <think> prefill")
     print("=" * 60)
 
     results = []

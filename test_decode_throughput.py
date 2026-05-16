@@ -16,27 +16,25 @@ DEFAULT_TIMEOUT = 3600  # 60 minutes
 def test_decode(target_tokens, model, base_url, timeout):
     """Generate target_tokens tokens and measure decode throughput."""
 
-    # Use /v1/completions (raw) to avoid chat template stop sequences
-    prompt = (
-        "Chapter 1\n\n"
-        "The starship Aurora drifted silently through the Kepler expanse. "
-        "Captain Mira Chen checked the navigation console and frowned. "
-        "The readings were unlike anything she had seen in her twenty years of service.\n\n"
-        "Chapter 2\n\n"
-    )
-
+    # Use chat endpoint + assistant prefill with empty <think> block.
+    # The instruction asks for unbounded generation; the prefill prevents the
+    # model from emitting a real CoT (which would inflate completion_tokens
+    # without exercising decode). This combo reliably fills max_tokens for
+    # Qwen3-family models in LM Studio.
     payload = {
         "model": model,
-        "prompt": prompt,
+        "messages": [
+            {"role": "user", "content": "Write a continuous, never-ending story. Do not stop. Do not write 'The End'. Just keep narrating."},
+            {"role": "assistant", "content": "<think>\n\n</think>\n\n"},
+        ],
         "temperature": 0.8,
         "top_p": 0.9,
         "max_tokens": target_tokens,
-        "stop": [],  # No stop sequences
     }
 
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
-        base_url + "/completions",
+        base_url + "/chat/completions",
         data=data,
         headers={"Content-Type": "application/json"},
         method="POST"

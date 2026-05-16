@@ -8,6 +8,7 @@ All benchmarks run using LM Studio as the inference server.
 |---------|---------|----------|
 | MacBook Pro | M1 Max | 64GB unified |
 | Desktop | RTX 4070 Ti Super | 16GB VRAM |
+| Desktop (dual-GPU) | 2× RTX 5060 Ti | 2× 16GB VRAM |
 
 ## Models Tested
 
@@ -18,6 +19,7 @@ All benchmarks run using LM Studio as the inference server.
 | lmstudio-community/qwen3.5-27b | Dense | GGUF Q4_K_M | 27B |
 | mlx-community/qwen3.5-27b | Dense | MLX 4-bit | 27B |
 | unsloth/qwen3.5-27b | Dense | GGUF | 27B |
+| unsloth/qwen3.6-27b | Dense | GGUF | 27B |
 
 ---
 
@@ -76,6 +78,18 @@ Full 256K context supported with recall.
 
 *128K recall failure was due to max_tokens=100 (too low to capture thinking + answer). Later tests used max_tokens=4096.
 
+### unsloth/qwen3.6-27b (Dense, GGUF) — 2× RTX 5060 Ti 16GB
+
+Empty-`<think>` prefill applied to suppress CoT.
+
+| Size | Time | Prompt tok/s | Completion tok/s | Recall |
+|------|------|--------------|------------------|--------|
+| 1K | 1.5s | 516.3 | 6.0 | Pass |
+| 16K | 17.0s | 830.7 | 0.5 | Pass |
+| 128K | 182.6s | 622.4 | 0.0 | Pass |
+
+For reference, an earlier run on this rig at 192K/256K (without the prefill — CoT inflated decode tokens) confirmed recall passes at both sizes; prefill numbers not yet collected.
+
 ### Cold vs Warm — qwen3.5-27b on M1 Max
 
 | Size | Time | Prompt tok/s | Completion tok/s | Recall |
@@ -100,6 +114,14 @@ Full 256K context supported with recall.
 |--------|--------|------|-------------|
 | 256 | 256 | 12s | 22.0 |
 | 8K | 8,192 | 5 min 46s | 23.7 |
+
+### unsloth/qwen3.6-27b — 2× RTX 5060 Ti 16GB
+
+| Target | Actual | Time | Decode tok/s |
+|--------|--------|------|-------------|
+| 256 | 256 | 14.1s | 18.1 |
+| 1K | 1,024 | 53.1s | **19.3** |
+| 4K | 4,096 | 224.6s | 18.2 |
 
 ---
 

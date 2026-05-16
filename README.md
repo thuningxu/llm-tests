@@ -57,7 +57,7 @@ python3 test_context_window.py --url "http://localhost:8080/v1" --timeout 7200
 
 ### test_decode_throughput.py
 
-Benchmarks decode (token generation) throughput by requesting the model to generate a configurable number of tokens. Uses the raw `/v1/completions` endpoint to avoid chat template stop sequences.
+Benchmarks decode (token generation) throughput by requesting the model to generate a configurable number of tokens. Uses the chat endpoint with an empty-`<think>` assistant prefill to suppress chain-of-thought and prevent early termination on Qwen3-family models, so the run reliably fills `max_tokens`.
 
 ```bash
 # Test with default sizes (256, 1024, 4096 tokens)
