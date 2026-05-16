@@ -25,6 +25,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from datasets import load_dataset
 
@@ -109,7 +110,7 @@ def filter_category(rows, category):
 
 
 def evaluate_category(model, base_url, test_rows, val_rows, category, num_shots,
-                      limit, timeout, max_tokens):
+                      limit, timeout, max_tokens, jobs):
     cat_test = filter_category(test_rows, category)
     cat_val = filter_category(val_rows, category)
     if not cat_test:
@@ -122,31 +123,40 @@ def evaluate_category(model, base_url, test_rows, val_rows, category, num_shots,
     start = time.time()
     last_progress = start
 
-    for i, row in enumerate(cat_test):
+    def run_one(row):
         prompt = build_prompt(cat_val, row, category, num_shots)
         gold = row["answer"].strip().upper()
-        try:
-            result = query(model, base_url, prompt, timeout, max_tokens)
-            choice = result["choices"][0]
-            reply = choice.get("text") or choice.get("message", {}).get("content", "")
-            pred = parse_answer(reply)
-            if pred is None:
-                n_parse_fail += 1
-            elif pred == gold:
-                n_correct += 1
-        except Exception as e:
-            n_errors += 1
-            if n_errors <= 3:
-                print(f"  [error] {type(e).__name__}: {e}", file=sys.stderr)
+        result = query(model, base_url, prompt, timeout, max_tokens)
+        choice = result["choices"][0]
+        reply = choice.get("text") or choice.get("message", {}).get("content", "")
+        pred = parse_answer(reply)
+        if pred is None:
+            return "parse_fail"
+        return "correct" if pred == gold else "wrong"
 
-        now = time.time()
-        if now - last_progress >= 10:
-            done = i + 1
-            acc = n_correct / done * 100
-            rate = done / (now - start)
-            print(f"  [{category}] {done}/{len(cat_test)} ({rate:.2f} q/s), "
-                  f"acc so far: {acc:.1f}% (parse-fail: {n_parse_fail})", flush=True)
-            last_progress = now
+    with ThreadPoolExecutor(max_workers=jobs) as executor:
+        futures = [executor.submit(run_one, row) for row in cat_test]
+        done = 0
+        for fut in as_completed(futures):
+            done += 1
+            try:
+                outcome = fut.result()
+                if outcome == "correct":
+                    n_correct += 1
+                elif outcome == "parse_fail":
+                    n_parse_fail += 1
+            except Exception as e:
+                n_errors += 1
+                if n_errors <= 3:
+                    print(f"  [error] {type(e).__name__}: {e}", file=sys.stderr)
+
+            now = time.time()
+            if now - last_progress >= 10:
+                acc = n_correct / done * 100
+                rate = done / (now - start)
+                print(f"  [{category}] {done}/{len(cat_test)} ({rate:.2f} q/s), "
+                      f"acc so far: {acc:.1f}% (parse-fail: {n_parse_fail})", flush=True)
+                last_progress = now
 
     elapsed = time.time() - start
     n_total = len(cat_test)
@@ -178,6 +188,9 @@ def parse_args():
                    help=f"Number of few-shot examples (default: {DEFAULT_NUM_SHOTS})")
     p.add_argument("--max-tokens", type=int, default=DEFAULT_MAX_TOKENS,
                    help=f"Max generation tokens for CoT (default: {DEFAULT_MAX_TOKENS})")
+    p.add_argument("-j", "--jobs", type=int, default=1,
+                   help="Concurrent in-flight requests (default: 1). "
+                        "Speedup depends on server-side continuous batching.")
     p.add_argument("-t", "--timeout", type=int, default=DEFAULT_TIMEOUT,
                    help=f"Per-request timeout in seconds (default: {DEFAULT_TIMEOUT})")
     return p.parse_args()
@@ -201,7 +214,7 @@ def main():
     print(f"Server: {args.url}")
     print(f"Categories: {len(categories)}"
           + (f" (first: {categories[0]})" if len(categories) > 1 else f" ({categories[0]})"))
-    print(f"Shots: {args.shots}, max_tokens: {args.max_tokens}")
+    print(f"Shots: {args.shots}, max_tokens: {args.max_tokens}, jobs: {args.jobs}")
     if args.limit:
         print(f"Limit per category: {args.limit}")
     print("=" * 60)
@@ -212,7 +225,7 @@ def main():
         print(f"\n[{i}/{len(categories)}] {category}")
         r = evaluate_category(args.model, args.url, test_rows, val_rows,
                               category, args.shots, args.limit,
-                              args.timeout, args.max_tokens)
+                              args.timeout, args.max_tokens, args.jobs)
         results.append(r)
         print(f"  -> {r['n_correct']}/{r['n_total']} = {r['accuracy']*100:.1f}%"
               f"  (parse-fail: {r['n_parse_fail']}, errors: {r['n_errors']},"
